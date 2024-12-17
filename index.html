@@ -355,15 +355,23 @@
         function loadRandomPair(callback) {
             const selectedPair = selectNextPair();
             
+            if (!selectedPair || selectedPair.length !== 2) {
+                console.error('Invalid pair selected:', selectedPair);
+                return;
+            }
+            
             // Create temporary images for preloading
             const temp1 = new Image();
             const temp2 = new Image();
             let loadedCount = 0;
+            let hasError = false;
             
             const onBothLoaded = () => {
-                nextPair = selectedPair;
-                nextPairElements = [temp1, temp2];
-                if (callback) callback();
+                if (!hasError) {
+                    nextPair = selectedPair;
+                    nextPairElements = [temp1, temp2];
+                    if (callback) callback();
+                }
             };
             
             temp1.onload = () => {
@@ -375,17 +383,34 @@
                 if (loadedCount === 2) onBothLoaded();
             };
             
+            temp1.onerror = (e) => {
+                console.error('Error loading image 1:', e);
+                hasError = true;
+            };
+            temp2.onerror = (e) => {
+                console.error('Error loading image 2:', e);
+                hasError = true;
+            };
+            
             temp1.src = selectedPair[0];
             temp2.src = selectedPair[1];
         }
 
         // Update the displayNextPair function
         function displayNextPair() {
-            if (nextPair.length === 0 || nextPairElements.length === 0) return;
+            if (nextPair.length === 0 || nextPairElements.length === 0) {
+                console.error('No next pair available');
+                return;
+            }
             
             const img1 = document.getElementById('image1');
             const img2 = document.getElementById('image2');
             const container = document.getElementById('image-container');
+            
+            if (!img1 || !img2 || !container) {
+                console.error('Required elements not found');
+                return;
+            }
             
             // Create temporary images for the next-next pair
             loadRandomPair();
@@ -397,13 +422,16 @@
             const temp1 = new Image();
             const temp2 = new Image();
             let loadedCount = 0;
+            let hasError = false;
             
             const onBothLoaded = () => {
-                currentPair = nextPair;
-                img1.src = temp1.src;
-                img2.src = temp2.src;
-                img1.style.display = 'block';
-                img2.style.display = 'block';
+                if (!hasError) {
+                    currentPair = nextPair;
+                    img1.src = temp1.src;
+                    img2.src = temp2.src;
+                    img1.style.display = 'block';
+                    img2.style.display = 'block';
+                }
             };
             
             temp1.onload = () => {
@@ -415,8 +443,24 @@
                 if (loadedCount === 2) onBothLoaded();
             };
             
-            temp1.src = nextPairElements[0].src;
-            temp2.src = nextPairElements[1].src;
+            temp1.onerror = (e) => {
+                console.error('Error loading next image 1:', e);
+                hasError = true;
+                resetSession();
+            };
+            temp2.onerror = (e) => {
+                console.error('Error loading next image 2:', e);
+                hasError = true;
+                resetSession();
+            };
+            
+            try {
+                temp1.src = nextPairElements[0].src;
+                temp2.src = nextPairElements[1].src;
+            } catch (error) {
+                console.error('Error setting image sources:', error);
+                resetSession();
+            }
         }
 
         // Extract file input handler into a named function
@@ -425,91 +469,112 @@
             const maxSize = 20 * 1024 * 1024; // 20MB in bytes
             
             // Clean up any existing object URLs
-            currentImageUrls.forEach(url => URL.revokeObjectURL(url));
+            currentImageUrls.forEach(url => {
+                try {
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error('Error revoking URL:', error);
+                }
+            });
             currentImageUrls.clear();
-            images.length = 0; // Clear any existing images
+            images.length = 0;
             
             try {
-                // Check file sizes first
-                for (const file of files) {
-                    if (file.type.startsWith('image/') && file.size > maxSize) {
-                        alert('Your images are too large. Please select images smaller than 20 MB.');
-                        document.getElementById('folderInput').value = ''; // Clear the input
-                        return;
-                    }
+                if (!files || files.length < 2) {
+                    alert('Please select at least 2 images.');
+                    return;
                 }
-                
-                // If all files are within size limit, proceed
-                for (const file of files) {
-                    if (file.type.startsWith('image/')) {
-                        const url = URL.createObjectURL(file);
-                        currentImageUrls.add(url); // Track the URL for cleanup
-                        images.push(url);
-                    }
-                }
-                
-                if (images.length > 1) {
-                    // Set the total comparisons based on image count
-                    totalComparisons = calculateOptimalComparisons(images.length);
-                    
-                    // Remove initial view and show ranking interface
-                    document.querySelector('.initial-view').style.display = 'none';
-                    
-                    // Add logo back
-                    const logo = document.createElement('img');
-                    logo.src = './static/Office D.SHARP.png';
-                    logo.alt = 'Office D.SHARP';
-                    logo.className = 'logo';
-                    logo.onclick = resetSession;
-                    document.body.insertBefore(logo, document.body.firstChild);
-                    
-                    // Show container and leaderboard link
-                    const container = document.getElementById('image-container');
-                    container.style.display = 'flex';
-                    document.getElementById('view-leaderboard').style.display = 'block';
-                    
-                    // Preload first pair of images before displaying
-                    const firstPair = selectNextPair();
-                    currentPair = firstPair;
-                    
-                    // Create and preload both images
-                    const preloadPromises = firstPair.map(src => {
-                        return new Promise((resolve, reject) => {
-                            const img = new Image();
-                            img.onload = () => resolve(img);
-                            img.onerror = (e) => reject(new Error(`Failed to load image: ${e.message}`));
-                            img.src = src;
-                        });
-                    });
 
-                    // Wait for both images to load
-                    Promise.all(preloadPromises)
-                        .then(loadedImages => {
-                            const img1 = document.getElementById('image1');
-                            const img2 = document.getElementById('image2');
-                            
-                            // Set sources and display images
-                            img1.src = loadedImages[0].src;
-                            img2.src = loadedImages[1].src;
-                            
-                            img1.style.display = 'block';
-                            img2.style.display = 'block';
-                            
-                            // Start loading next pair
-                            loadRandomPair();
-                            
-                            // Attach event listeners
-                            attachEventListeners();
-                        })
-                        .catch(error => {
-                            console.error('Error loading initial images:', error);
-                            alert('Error loading images. Please try again.');
-                            resetSession();
-                        });
-                } else {
-                    alert('Please select at least 2 images to compare.');
-                    document.getElementById('folderInput').value = ''; // Clear the input
+                // Validate files first
+                const validFiles = Array.from(files).filter(file => {
+                    if (!file.type.startsWith('image/')) {
+                        console.warn('Skipping non-image file:', file.name);
+                        return false;
+                    }
+                    if (file.size > maxSize) {
+                        console.warn('Skipping large file:', file.name);
+                        return false;
+                    }
+                    return true;
+                });
+
+                if (validFiles.length < 2) {
+                    alert('Please select at least 2 valid image files (each under 20MB).');
+                    return;
                 }
+
+                // Create object URLs for valid files
+                validFiles.forEach(file => {
+                    try {
+                        const url = URL.createObjectURL(file);
+                        currentImageUrls.add(url);
+                        images.push(url);
+                    } catch (error) {
+                        console.error('Error creating object URL for file:', file.name, error);
+                    }
+                });
+
+                if (images.length < 2) {
+                    throw new Error('Failed to process enough valid images');
+                }
+
+                // Set the total comparisons based on image count
+                totalComparisons = calculateOptimalComparisons(images.length);
+                
+                // Remove initial view and show ranking interface
+                document.querySelector('.initial-view').style.display = 'none';
+                
+                // Add logo back
+                const logo = document.createElement('img');
+                logo.src = './static/Office D.SHARP.png';
+                logo.alt = 'Office D.SHARP';
+                logo.className = 'logo';
+                logo.onclick = resetSession;
+                document.body.insertBefore(logo, document.body.firstChild);
+                
+                // Show container and leaderboard link
+                const container = document.getElementById('image-container');
+                container.style.display = 'flex';
+                document.getElementById('view-leaderboard').style.display = 'block';
+                
+                // Preload first pair of images before displaying
+                const firstPair = selectNextPair();
+                currentPair = firstPair;
+                
+                // Create and preload both images
+                const preloadPromises = firstPair.map(src => {
+                    return new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = (e) => reject(new Error(`Failed to load image: ${e.message}`));
+                        img.src = src;
+                    });
+                });
+
+                // Wait for both images to load
+                Promise.all(preloadPromises)
+                    .then(loadedImages => {
+                        const img1 = document.getElementById('image1');
+                        const img2 = document.getElementById('image2');
+                        
+                        // Set sources and display images
+                        img1.src = loadedImages[0].src;
+                        img2.src = loadedImages[1].src;
+                        
+                        img1.style.display = 'block';
+                        img2.style.display = 'block';
+                        
+                        // Start loading next pair
+                        loadRandomPair();
+                        
+                        // Attach event listeners
+                        attachEventListeners();
+                    })
+                    .catch(error => {
+                        console.error('Error loading initial images:', error);
+                        alert('Error loading images. Please try again.');
+                        resetSession();
+                    });
             } catch (error) {
                 console.error('Error in handleFileInput:', error);
                 alert('An error occurred while processing the images. Please try again.');
