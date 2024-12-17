@@ -251,36 +251,35 @@
                 gap: 20px;
             }
             .initial-view {
-                justify-content: flex-start;
-                padding-top: 40px;
+                justify-content: space-between;
+                padding: 20px 0 40px 0;
             }
             
             .description-text {
-                margin-top: 40px;
-                margin-bottom: 20px;
-                order: -1;
-            }
-            
-            .image-container {
-                min-height: 100vh;
-                padding: 20px 0;
-                box-sizing: border-box;
-                margin: 10px;
-                flex-direction: column;
-                justify-content: center;
-            }
-            
-            .image-container img {
-                max-width: 95%;
-                max-height: 40vh;
-                margin: 5px;
-                width: auto;
-                height: auto;
+                margin: 0;
+                padding: 0 20px;
             }
             
             .logo {
                 width: 200px;
-                margin: 20px 0;
+                margin: 20px 0 10px 0;
+            }
+            
+            .image-container {
+                margin: 10px;
+                flex-direction: column;
+                justify-content: center;
+                min-height: auto;
+                gap: 10px;
+            }
+            
+            .image-container img {
+                max-width: 95%;
+                max-height: 35vh;
+                margin: 5px;
+                width: auto;
+                height: auto;
+                -webkit-tap-highlight-color: transparent;
             }
             
             .bottom-links {
@@ -941,16 +940,21 @@
                 return;
             }
             
-            // Add touch-specific handling
-            const handleTouch = (e, image) => {
-                e.preventDefault();  // Prevent double-tap zoom
-                if (!isLoading) {
-                    handleImageClick(image);
-                }
+            // Handle both click and touch events
+            const addImageListeners = (img, pairIndex) => {
+                const handler = (e) => {
+                    e.preventDefault();
+                    if (!isLoading) {
+                        handleImageClick(currentPair[pairIndex]);
+                    }
+                };
+                
+                img.addEventListener('click', handler);
+                img.addEventListener('touchend', handler);
             };
             
-            img1.addEventListener('click', (e) => handleTouch(e, currentPair[0]));
-            img2.addEventListener('click', (e) => handleTouch(e, currentPair[1]));
+            addImageListeners(img1, 0);
+            addImageListeners(img2, 1);
             
             // Prevent default touch behavior
             img1.addEventListener('touchstart', (e) => e.preventDefault());
