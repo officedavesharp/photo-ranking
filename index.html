@@ -112,6 +112,7 @@
             }
         }
         #progress-percentage {
+            display: none;
             position: fixed;
             bottom: 40px;
             right: 40px;
@@ -248,6 +249,48 @@
             .bottom-links {
                 bottom: 20px;
                 gap: 20px;
+            }
+            .initial-view {
+                justify-content: flex-start;
+                padding-top: 40px;
+            }
+            
+            .description-text {
+                margin-top: 40px;
+                margin-bottom: 20px;
+                order: -1;
+            }
+            
+            .image-container {
+                min-height: 100vh;
+                padding: 20px 0;
+                box-sizing: border-box;
+                margin: 10px;
+                flex-direction: column;
+                justify-content: center;
+            }
+            
+            .image-container img {
+                max-width: 95%;
+                max-height: 40vh;
+                margin: 5px;
+                width: auto;
+                height: auto;
+            }
+            
+            .logo {
+                width: 200px;
+                margin: 20px 0;
+            }
+            
+            .bottom-links {
+                bottom: 20px;
+                gap: 20px;
+            }
+            
+            #progress-percentage {
+                bottom: 20px;
+                right: 20px;
             }
         }
         @media (max-width: 480px) {
@@ -804,6 +847,7 @@
                 const container = document.getElementById('image-container');
                 container.style.display = 'flex';
                 document.getElementById('view-leaderboard').style.display = 'block';
+                document.getElementById('progress-percentage').style.display = 'block';  // Show progress
                 
                 // Preload first pair of images before displaying
                 const firstPair = selectNextPair();
@@ -893,18 +937,24 @@
             const img2 = document.getElementById('image2');
             
             if (!img1 || !img2) {
-                console.error('Image elements not found!'); // Debug log
+                console.error('Image elements not found!');
                 return;
             }
             
-            img1.addEventListener('click', () => {
-                console.log('Image 1 clicked'); // Debug log
-                handleImageClick(currentPair[0]);
-            });
-            img2.addEventListener('click', () => {
-                console.log('Image 2 clicked'); // Debug log
-                handleImageClick(currentPair[1]);
-            });
+            // Add touch-specific handling
+            const handleTouch = (e, image) => {
+                e.preventDefault();  // Prevent double-tap zoom
+                if (!isLoading) {
+                    handleImageClick(image);
+                }
+            };
+            
+            img1.addEventListener('click', (e) => handleTouch(e, currentPair[0]));
+            img2.addEventListener('click', (e) => handleTouch(e, currentPair[1]));
+            
+            // Prevent default touch behavior
+            img1.addEventListener('touchstart', (e) => e.preventDefault());
+            img2.addEventListener('touchstart', (e) => e.preventDefault());
         }
 
         attachEventListeners();
