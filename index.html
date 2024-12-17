@@ -247,6 +247,7 @@
         const K_FACTOR = 32;
         let firstThresholdReached = false;
         let currentImageUrls = new Set(); // To track created URLs for cleanup
+        let isLoading = false;
 
         // Add this new function to calculate optimal comparisons
         function calculateOptimalComparisons(imageCount) {
@@ -351,8 +352,40 @@
             return selectedPair;
         }
 
-        // Function to load a random pair of images
+        // Add this helper function at the top of your script section
+        function loadImageWithRetry(src, maxRetries = 3, delay = 1000) {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                
+                function attemptLoad() {
+                    attempts++;
+                    const img = new Image();
+                    
+                    img.onload = () => resolve(img);
+                    
+                    img.onerror = (error) => {
+                        console.warn(`Attempt ${attempts} failed to load image:`, src);
+                        if (attempts < maxRetries) {
+                            setTimeout(attemptLoad, delay);
+                        } else {
+                            reject(new Error(`Failed to load image after ${maxRetries} attempts`));
+                        }
+                    };
+                    
+                    img.src = src;
+                }
+                
+                attemptLoad();
+            });
+        }
+
+        // Update the loadRandomPair function
         function loadRandomPair(callback) {
+            if (isLoading) {
+                console.warn('Already loading images, skipping this request');
+                return;
+            }
+            
             const selectedPair = selectNextPair();
             
             if (!selectedPair || selectedPair.length !== 2) {
@@ -360,44 +393,54 @@
                 return;
             }
             
-            // Create temporary images for preloading
-            const temp1 = new Image();
-            const temp2 = new Image();
-            let loadedCount = 0;
-            let hasError = false;
+            isLoading = true;
             
-            const onBothLoaded = () => {
-                if (!hasError) {
-                    nextPair = selectedPair;
-                    nextPairElements = [temp1, temp2];
-                    if (callback) callback();
+            Promise.all([
+                loadImageWithRetry(selectedPair[0]),
+                loadImageWithRetry(selectedPair[1])
+            ])
+            .then(([img1, img2]) => {
+                nextPair = selectedPair;
+                nextPairElements = [img1, img2];
+                isLoading = false;
+                if (callback) callback();
+            })
+            .catch(error => {
+                console.error('Error in loadRandomPair:', error);
+                isLoading = false;
+                
+                // Try one more time with a new pair
+                const newPair = selectNextPair();
+                if (newPair && newPair.length === 2) {
+                    isLoading = true;
+                    Promise.all([
+                        loadImageWithRetry(newPair[0]),
+                        loadImageWithRetry(newPair[1])
+                    ])
+                    .then(([img1, img2]) => {
+                        nextPair = newPair;
+                        nextPairElements = [img1, img2];
+                        isLoading = false;
+                        if (callback) callback();
+                    })
+                    .catch(error => {
+                        console.error('Failed to load images after retry:', error);
+                        isLoading = false;
+                        alert('Error loading images. Please try again.');
+                        resetSession();
+                    });
                 }
-            };
-            
-            temp1.onload = () => {
-                loadedCount++;
-                if (loadedCount === 2) onBothLoaded();
-            };
-            temp2.onload = () => {
-                loadedCount++;
-                if (loadedCount === 2) onBothLoaded();
-            };
-            
-            temp1.onerror = (e) => {
-                console.error('Error loading image 1:', e);
-                hasError = true;
-            };
-            temp2.onerror = (e) => {
-                console.error('Error loading image 2:', e);
-                hasError = true;
-            };
-            
-            temp1.src = selectedPair[0];
-            temp2.src = selectedPair[1];
+            });
         }
 
         // Update the displayNextPair function
         function displayNextPair() {
+            if (isLoading) {
+                console.warn('Already loading images, waiting...');
+                setTimeout(() => displayNextPair(), 500);
+                return;
+            }
+            
             if (nextPair.length === 0 || nextPairElements.length === 0) {
                 console.error('No next pair available');
                 return;
@@ -412,55 +455,40 @@
                 return;
             }
             
-            // Create temporary images for the next-next pair
-            loadRandomPair();
+            isLoading = true;
+            
+            // Hide current images while loading new ones
+            img1.style.display = 'none';
+            img2.style.display = 'none';
             
             // Ensure container is visible
             container.style.display = 'flex';
             
-            // Keep current images visible while loading new ones
-            const temp1 = new Image();
-            const temp2 = new Image();
-            let loadedCount = 0;
-            let hasError = false;
-            
-            const onBothLoaded = () => {
-                if (!hasError) {
-                    currentPair = nextPair;
-                    img1.src = temp1.src;
-                    img2.src = temp2.src;
+            Promise.all([
+                loadImageWithRetry(nextPairElements[0].src),
+                loadImageWithRetry(nextPairElements[1].src)
+            ])
+            .then(([loadedImg1, loadedImg2]) => {
+                currentPair = nextPair;
+                img1.src = loadedImg1.src;
+                img2.src = loadedImg2.src;
+                
+                // Show images only after both are loaded
+                requestAnimationFrame(() => {
                     img1.style.display = 'block';
                     img2.style.display = 'block';
-                }
-            };
-            
-            temp1.onload = () => {
-                loadedCount++;
-                if (loadedCount === 2) onBothLoaded();
-            };
-            temp2.onload = () => {
-                loadedCount++;
-                if (loadedCount === 2) onBothLoaded();
-            };
-            
-            temp1.onerror = (e) => {
-                console.error('Error loading next image 1:', e);
-                hasError = true;
+                    isLoading = false;
+                    
+                    // Start loading next pair only after current pair is displayed
+                    loadRandomPair();
+                });
+            })
+            .catch(error => {
+                console.error('Error in displayNextPair:', error);
+                isLoading = false;
+                alert('Error loading images. Please try again.');
                 resetSession();
-            };
-            temp2.onerror = (e) => {
-                console.error('Error loading next image 2:', e);
-                hasError = true;
-                resetSession();
-            };
-            
-            try {
-                temp1.src = nextPairElements[0].src;
-                temp2.src = nextPairElements[1].src;
-            } catch (error) {
-                console.error('Error setting image sources:', error);
-                resetSession();
-            }
+            });
         }
 
         // Extract file input handler into a named function
@@ -542,22 +570,16 @@
                 currentPair = firstPair;
                 
                 // Create and preload both images
-                const preloadPromises = firstPair.map(src => {
-                    return new Promise((resolve, reject) => {
-                        const img = new Image();
-                        img.onload = () => resolve(img);
-                        img.onerror = (e) => reject(new Error(`Failed to load image: ${e.message}`));
-                        img.src = src;
-                    });
-                });
-
-                // Wait for both images to load
-                Promise.all(preloadPromises)
-                    .then(loadedImages => {
+                const preloadFirstPair = async () => {
+                    try {
+                        const loadedImages = await Promise.all([
+                            loadImageWithRetry(firstPair[0]),
+                            loadImageWithRetry(firstPair[1])
+                        ]);
+                        
                         const img1 = document.getElementById('image1');
                         const img2 = document.getElementById('image2');
                         
-                        // Set sources and display images
                         img1.src = loadedImages[0].src;
                         img2.src = loadedImages[1].src;
                         
@@ -569,12 +591,14 @@
                         
                         // Attach event listeners
                         attachEventListeners();
-                    })
-                    .catch(error => {
+                    } catch (error) {
                         console.error('Error loading initial images:', error);
                         alert('Error loading images. Please try again.');
                         resetSession();
-                    });
+                    }
+                };
+
+                preloadFirstPair();
             } catch (error) {
                 console.error('Error in handleFileInput:', error);
                 alert('An error occurred while processing the images. Please try again.');
@@ -593,15 +617,20 @@
 
         // Function to handle image click
         function handleImageClick(selectedImage) {
+            if (isLoading) {
+                console.warn('Images are still loading, ignoring click');
+                return;
+            }
+            
             const otherImage = currentPair.find(img => img !== selectedImage);
             calculateNewRatings(selectedImage, otherImage);
             comparisons++;
             updateProgress();
+            
             if (comparisons >= totalComparisons && !firstThresholdReached) {
                 firstThresholdReached = true;
                 showLeaderboard();
             } else {
-                // Make sure nextPair is loaded before calling displayNextPair
                 if (nextPair.length === 0 || nextPairElements.length === 0) {
                     loadRandomPair(() => displayNextPair());
                 } else {
@@ -957,6 +986,7 @@
 
         // Add resetSession function
         function resetSession() {
+            isLoading = false;
             // Clean up object URLs
             currentImageUrls.forEach(url => URL.revokeObjectURL(url));
             currentImageUrls.clear();
