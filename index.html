@@ -216,7 +216,7 @@
 </head>
 <body>
     <div class="initial-view">
-        <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo">
+        <img src="static/Office D.SHARP.png" alt="Office D.SHARP" class="logo">
         <div class="custom-file-input">
             <label class="custom-file-button" for="folderInput">Select Images</label>
             <input type="file" id="folderInput" multiple accept="image/*" />
@@ -449,7 +449,7 @@
                 
                 // Add logo back
                 const logo = document.createElement('img');
-                logo.src = './static/Office D.SHARP.png';
+                logo.src = '/static/Office D.SHARP.png';
                 logo.alt = 'Office D.SHARP';
                 logo.className = 'logo';
                 logo.onclick = resetSession;
@@ -584,7 +584,7 @@
             try {
                 const body = document.body;
                 body.innerHTML = `
-                    <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo" onclick="restoreRankingPage()">
+                    <img src="/static/Office D.SHARP.png" alt="Office D.SHARP" class="logo" onclick="restoreRankingPage()">
                     <div class="leaderboard-page"></div>
                 `;
                 
@@ -666,7 +666,7 @@
         // Update restoreRankingPage function
         function restoreRankingPage() {
             document.body.innerHTML = `
-                <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo" onclick="resetSession()">
+                <img src="/static/Office D.SHARP.png" alt="Office D.SHARP" class="logo" onclick="resetSession()">
                 <div class="image-container" id="image-container">
                     <img id="image1" src="" alt="Image 1" loading="lazy" style="display: none;">
                     <img id="image2" src="" alt="Image 2" loading="lazy" style="display: none;">
@@ -861,7 +861,7 @@
             // Reset UI to initial state
             document.body.innerHTML = `
                 <div class="initial-view">
-                    <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo">
+                    <img src="/static/Office D.SHARP.png" alt="Office D.SHARP" class="logo">
                     <div class="custom-file-input">
                         <label class="custom-file-button" for="folderInput">Select Images</label>
                         <input type="file" id="folderInput" multiple accept="image/*" />
