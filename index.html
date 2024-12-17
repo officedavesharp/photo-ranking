@@ -277,7 +277,7 @@
         </div>
         <div style="flex-grow: 1"></div>
         <div class="description-text">
-            A tool by <a href="https://www.officedavesharp.com/" target="_blank" rel="noopener">Office D.SHARP</a> to assist with the selection of architectural photography
+            A tool by <a href="https://www.officedavesharp.com/" target="_blank" rel="noopener">Office D.SHARP</a> to select architectural photographs. Simply click your preferred image in each pair until the process is complete. The algorithm will learn from your choices to create a final ranked list.
         </div>
     </div>
     <div class="image-container" id="image-container" style="display: none;">
@@ -303,6 +303,10 @@
         let currentImageUrls = new Set(); // To track created URLs for cleanup
         let isLoading = false;
         const fileNames = new Map(); // To store original file names
+        const gamesPlayed = new Map();      // Track number of comparisons per image
+        const ratingConfidence = new Map();  // Track rating confidence
+        const matchHistory = new Map();      // Track win/loss history
+        const ratingVolatility = new Map();  // Track rating changes
 
         // Add this right after your variable declarations, before any other functions
         function resetSession() {
@@ -318,9 +322,13 @@
             currentImageUrls.clear();
             fileNames.clear(); // Clear stored filenames
             
-            // Clear all data
+            // Clear all data including new tracking maps
             images.length = 0;
             Object.keys(rankings).forEach(key => delete rankings[key]);
+            gamesPlayed.clear();
+            ratingConfidence.clear();
+            matchHistory.clear();
+            ratingVolatility.clear();
             currentPair = [];
             nextPair = [];
             nextPairElements = [];
@@ -339,7 +347,7 @@
                     </div>
                     <div style="flex-grow: 1"></div>
                     <div class="description-text">
-                        A tool by <a href="https://www.officedavesharp.com/" target="_blank" rel="noopener">Office D.SHARP</a> to assist with the selection of architectural photography
+                        A tool by <a href="https://www.officedavesharp.com/" target="_blank" rel="noopener">Office D.SHARP</a> to rank architectural photographs. Simply click your preferred image in each pair until the process is complete. The algorithm will learn from your choices to create a ranked list from most to least preferred.
                     </div>
                 </div>
                 <div class="image-container" id="image-container" style="display: none;">
@@ -362,13 +370,13 @@
         function calculateOptimalComparisons(imageCount) {
             let comparisonsPerImage;
             if (imageCount <= 30) {
-                comparisonsPerImage = 8;
+                comparisonsPerImage = 6;     // Reduced from 10
             } else if (imageCount <= 60) {
-                comparisonsPerImage = 6;
+                comparisonsPerImage = 5;     // Reduced from 8
             } else if (imageCount <= 100) {
-                comparisonsPerImage = 5;
+                comparisonsPerImage = 4;     // Reduced from 6
             } else {
-                comparisonsPerImage = 4;
+                comparisonsPerImage = 3;     // Reduced from 5
             }
             return Math.round((imageCount * comparisonsPerImage) / 2);
         }
@@ -395,69 +403,170 @@
         function calculateNewRatings(winner, loser) {
             const winnerRating = rankings[winner] || 1500;
             const loserRating = rankings[loser] || 1500;
+            const winnerGames = (gamesPlayed.get(winner) || 0) + 1;
+            const loserGames = gamesPlayed.get(loser) || 0 + 1;
+            
+            // Calculate K-factor based on games played and current rating
+            const winnerK = winnerGames < 10 ? 40 : (winnerRating < 1500 ? 32 : 24);
+            const loserK = loserGames < 10 ? 40 : (loserRating < 1500 ? 32 : 24);
             
             // Calculate expected scores
             const expectedWinner = 1 / (1 + Math.pow(10, (loserRating - winnerRating) / 400));
             const expectedLoser = 1 - expectedWinner;
             
             // Update ratings
-            rankings[winner] = Math.round(winnerRating + K_FACTOR * (1 - expectedWinner));
-            rankings[loser] = Math.round(loserRating + K_FACTOR * (0 - expectedLoser));
+            const newWinnerRating = Math.round(winnerRating + winnerK * (1 - expectedWinner));
+            const newLoserRating = Math.round(loserRating + loserK * (0 - expectedLoser));
+            
+            // Update volatility
+            updateVolatility(winner, winnerRating, newWinnerRating);
+            updateVolatility(loser, loserRating, newLoserRating);
+            
+            // Update confidence scores
+            const winnerConfidence = ratingConfidence.get(winner) || 0;
+            const loserConfidence = ratingConfidence.get(loser) || 0;
+            ratingConfidence.set(winner, winnerConfidence + Math.abs(1 - expectedWinner));
+            ratingConfidence.set(loser, loserConfidence + Math.abs(0 - expectedLoser));
+            
+            // Update match history
+            updateMatchHistory(winner, loser);
+            
+            // Update games played
+            gamesPlayed.set(winner, winnerGames);
+            gamesPlayed.set(loser, loserGames);
+            
+            // Finally, update rankings
+            rankings[winner] = newWinnerRating;
+            rankings[loser] = newLoserRating;
         }
 
-        // Update the selectNextPair function with validation
+        // Add helper functions for the improved algorithm
+        function updateVolatility(image, oldRating, newRating) {
+            const volatility = ratingVolatility.get(image) || [];
+            volatility.push(Math.abs(newRating - oldRating));
+            if (volatility.length > 5) volatility.shift(); // Keep last 5 changes
+            ratingVolatility.set(image, volatility);
+        }
+
+        function updateMatchHistory(winner, loser) {
+            const winnerHistory = matchHistory.get(winner) || [];
+            const loserHistory = matchHistory.get(loser) || [];
+            
+            winnerHistory.push(1);
+            loserHistory.push(0);
+            
+            // Keep last 10 matches
+            if (winnerHistory.length > 10) winnerHistory.shift();
+            if (loserHistory.length > 10) loserHistory.shift();
+            
+            matchHistory.set(winner, winnerHistory);
+            matchHistory.set(loser, loserHistory);
+        }
+
+        function getRecentPerformance(image) {
+            const history = matchHistory.get(image) || [];
+            if (history.length === 0) return 0.5;
+            
+            return history.reduce((acc, result, index) => 
+                acc + result * (1 + index/history.length)
+            ) / history.length;
+        }
+
+        // Update the selectNextPair function to prevent duplicate images
         function selectNextPair() {
             if (images.length < 2) {
                 console.error('Not enough images to select a pair');
                 return null;
             }
 
-            const unratedImages = images.filter(img => !(img in rankings));
-            const ratedImages = images.filter(img => img in rankings);
-            
-            // Remove recently shown images from consideration
-            const availableUnrated = unratedImages.filter(img => !lastShownImages.has(img));
-            const availableRated = ratedImages.filter(img => !lastShownImages.has(img));
-            
-            let selectedPair = [];
-            
-            // Priority 1: If we have unrated images, use at least one
-            if (availableUnrated.length > 0) {
-                selectedPair.push(availableUnrated[Math.floor(Math.random() * availableUnrated.length)]);
-                
-                // If we have another unrated image, prefer it
-                const remainingUnrated = availableUnrated.filter(img => img !== selectedPair[0]);
-                if (remainingUnrated.length > 0 && Math.random() < 0.7) {
-                    selectedPair.push(remainingUnrated[Math.floor(Math.random() * remainingUnrated.length)]);
-                }
+            // Get all available images that aren't in lastShownImages
+            const availableImages = images.filter(img => !lastShownImages.has(img));
+            if (availableImages.length < 2) {
+                lastShownImages.clear();
+                return selectNextPair();
             }
-            
-            // If we still need another image, select from rated ones or any remaining images
-            if (selectedPair.length < 2) {
-                const availableImages = images.filter(img => 
-                    !selectedPair.includes(img) && !lastShownImages.has(img)
+
+            // Strongly prioritize unranked images
+            const unrankedImages = availableImages.filter(img => !(img in rankings));
+            if (unrankedImages.length >= 2) {
+                // If we have at least 2 unranked images, use them
+                const firstIndex = Math.floor(Math.random() * unrankedImages.length);
+                const first = unrankedImages[firstIndex];
+                // Remove the first image from consideration for the second
+                const remainingUnranked = unrankedImages.filter((_, index) => index !== firstIndex);
+                const second = remainingUnranked[Math.floor(Math.random() * remainingUnranked.length)];
+                
+                const pair = [first, second];
+                pair.forEach(img => lastShownImages.add(img));
+                return pair;
+            } else if (unrankedImages.length === 1) {
+                // If we have 1 unranked image, pair it with a ranked one
+                const rankedImages = availableImages.filter(img => 
+                    img in rankings && img !== unrankedImages[0]  // Ensure different from first image
                 );
-                
-                if (availableImages.length === 0) {
-                    // If no other images available, clear lastShownImages and try again
-                    lastShownImages.clear();
-                    return selectNextPair();
+                if (rankedImages.length === 0) {
+                    return selectNextPair(); // Try again if no valid pairs
                 }
-                
-                selectedPair.push(availableImages[Math.floor(Math.random() * availableImages.length)]);
+                const pair = [
+                    unrankedImages[0],
+                    rankedImages[Math.floor(Math.random() * rankedImages.length)]
+                ];
+                pair.forEach(img => lastShownImages.add(img));
+                return pair;
             }
-            
-            // Validate the pair before returning
-            if (selectedPair.length !== 2 || !selectedPair[0] || !selectedPair[1]) {
-                console.error('Invalid pair selected:', selectedPair);
-                return null;
+
+            // Calculate scores for each image based on multiple factors
+            const imageScores = availableImages.map(img => ({
+                image: img,
+                rating: rankings[img] || 1500,
+                confidence: ratingConfidence.get(img) || 0,
+                gamesPlayed: gamesPlayed.get(img) || 0,
+                performance: getRecentPerformance(img),
+                score: 0
+            }));
+
+            // Calculate priority scores
+            imageScores.forEach(img => {
+                img.score += (1 - (img.confidence / (averageConfidence() || 1))) * 3;
+                img.score += (10 - Math.min(img.gamesPlayed, 10)) * 2;
+                img.score += Math.random();
+            });
+
+            // Sort by score and select first image
+            imageScores.sort((a, b) => b.score - a.score);
+            const firstImage = imageScores[0].image;
+
+            // Find a suitable opponent (excluding the first image)
+            const remainingImages = imageScores
+                .slice(1)
+                .filter(img => img.image !== firstImage);  // Extra safety check
+
+            if (remainingImages.length === 0) {
+                return selectNextPair(); // Try again if no valid pairs
             }
-            
-            // Update recently shown images
-            lastShownImages.clear();
+
+            const targetRating = rankings[firstImage] || 1500;
+
+            // Score potential opponents
+            remainingImages.forEach(img => {
+                const ratingDiff = Math.abs(img.rating - targetRating);
+                img.score = 100 - Math.min(ratingDiff / 10, 100);
+                img.score += Math.random() * 20;
+            });
+
+            // Select opponent
+            remainingImages.sort((a, b) => b.score - a.score);
+            const secondImage = remainingImages[0].image;
+
+            // Final validation
+            if (firstImage === secondImage) {
+                console.error('Attempted to create pair with same image');
+                return selectNextPair(); // Try again if somehow got same image
+            }
+
+            const selectedPair = [firstImage, secondImage];
             selectedPair.forEach(img => lastShownImages.add(img));
-            
-            console.log('Selected pair:', selectedPair); // Debug log
+
             return selectedPair;
         }
 
@@ -732,7 +841,27 @@
             document.getElementById('progress-percentage').innerText = `${Math.floor(progress)}%`;
         }
 
-        // Function to handle image click
+        // Add early completion check based on rating stability
+        function checkRatingStability() {
+            // If we've done at least 70% of planned comparisons, check if ratings are stable
+            if (comparisons >= totalComparisons * 0.7) {
+                const volatilities = Array.from(ratingVolatility.values());
+                if (volatilities.length > 0) {
+                    // Calculate average recent volatility
+                    const avgVolatility = volatilities.reduce((sum, vol) => 
+                        sum + (vol.length > 0 ? vol[vol.length - 1] : 0), 0
+                    ) / volatilities.length;
+                    
+                    // If average volatility is low, consider rankings stable
+                    if (avgVolatility < 15) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Update handleImageClick to include early completion
         function handleImageClick(selectedImage) {
             if (isLoading) {
                 console.warn('Images are still loading, ignoring click');
@@ -744,7 +873,9 @@
             comparisons++;
             updateProgress();
             
-            if (comparisons >= totalComparisons && !firstThresholdReached) {
+            // Check if we should complete early
+            if ((comparisons >= totalComparisons && !firstThresholdReached) || 
+                (checkRatingStability() && !firstThresholdReached)) {
                 firstThresholdReached = true;
                 showLeaderboard();
             } else {
@@ -827,6 +958,8 @@
 
         // Update the showLeaderboard function
         async function showLeaderboard() {
+            debugRankings();
+            
             // Show loading overlay
             const overlay = document.createElement('div');
             overlay.className = 'overlay';
@@ -1170,6 +1303,29 @@
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
+        }
+
+        // Add this helper function
+        function averageConfidence() {
+            if (ratingConfidence.size === 0) return 0;
+            const sum = Array.from(ratingConfidence.values()).reduce((a, b) => a + b, 0);
+            return sum / ratingConfidence.size;
+        }
+
+        // Add this debug function
+        function debugRankings() {
+            console.log('Total images loaded:', images.length);
+            console.log('Images in rankings:', Object.keys(rankings).length);
+            console.log('Images in gamesPlayed:', gamesPlayed.size);
+            console.log('Images in matchHistory:', matchHistory.size);
+            
+            // Find images that aren't in rankings
+            const unrankedImages = images.filter(img => !(img in rankings));
+            console.log('Unranked images:', unrankedImages.length);
+            
+            // Check if any images have no games played
+            const noGamesPlayed = images.filter(img => !gamesPlayed.has(img));
+            console.log('Images with no games:', noGamesPlayed.length);
         }
     </script>
 </body>
