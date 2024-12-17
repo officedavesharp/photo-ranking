@@ -252,17 +252,23 @@
             }
             .initial-view {
                 justify-content: space-between;
-                padding: 20px 0 40px 0;
+                padding: 0;
             }
             
             .description-text {
                 margin: 0;
-                padding: 0 20px;
+                padding: 20px;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: #f4f4f4;
+                z-index: 1;
             }
             
             .logo {
                 width: 200px;
-                margin: 20px 0 10px 0;
+                margin: 80px 0 10px 0;
             }
             
             .image-container {
@@ -306,6 +312,12 @@
             .bottom-links {
                 flex-direction: column;
                 gap: 15px;
+            }
+        }
+        /* Remove hover effect on touch devices */
+        @media (hover: none) {
+            .image-container img:hover {
+                border-color: transparent;
             }
         }
     </style>
