@@ -345,7 +345,7 @@
         <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo">
         <div class="custom-file-input">
             <label class="custom-file-button" for="folderInput">Select Images</label>
-            <input type="file" id="folderInput" multiple accept="image/*" />
+            <input type="file" id="folderInput" multiple accept=".jpg,.jpeg,.png,.gif,.webp" />
         </div>
         <div style="flex-grow: 1"></div>
         <div class="description-text">
@@ -415,7 +415,7 @@
                     <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo">
                     <div class="custom-file-input">
                         <label class="custom-file-button" for="folderInput">Select Images</label>
-                        <input type="file" id="folderInput" multiple accept="image/*" />
+                        <input type="file" id="folderInput" multiple accept=".jpg,.jpeg,.png,.gif,.webp" />
                     </div>
                     <div style="flex-grow: 1"></div>
                     <div class="description-text">
@@ -830,15 +830,16 @@
 
                 // Validate files
                 const validFiles = Array.from(files).filter(file => {
-                    if (!file.type.startsWith('image/')) {
-                        console.warn('Skipping non-image file:', file.name);
+                    const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    if (!supportedTypes.includes(file.type)) {
+                        console.warn(`Skipping unsupported file type (${file.type}):`, file.name);
                         return false;
                     }
                     return true;
                 });
 
                 if (validFiles.length < 2) {
-                    alert('Please select at least 2 valid image files.');
+                    alert('Please select at least 2 valid image files.\n\nSupported formats: JPG, PNG, GIF, WebP');
                     return;
                 }
 
