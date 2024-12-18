@@ -7,6 +7,7 @@
     <title>Photography Selection Tool by Office D.SHARP</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='black'/></svg>">
     <script defer data-domain="officedavesharp.github.io/photo-ranking" src="https://plausible.io/js/script.js"></script>
+    <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -817,6 +818,16 @@
                     return;
                 }
 
+                // Track image selection event with count
+                window.plausible('Image Selection', { 
+                    props: { 
+                        imageCount: files.length 
+                    }
+                });
+                
+                // Update URL without triggering reload
+                history.pushState({}, '', '#comparing');
+
                 // Check for large files first
                 const largeFiles = Array.from(files).filter(file => 
                     file.type.startsWith('image/') && file.size > maxSize
@@ -1045,6 +1056,12 @@
         async function showLeaderboard() {
             debugRankings();
             
+            // Update URL without triggering reload
+            history.pushState({}, '', '#leaderboard');
+            
+            // Track leaderboard view
+            window.plausible('View Leaderboard');
+            
             // Show loading overlay
             const overlay = document.createElement('div');
             overlay.className = 'overlay';
@@ -1145,6 +1162,9 @@
 
         // Update restoreRankingPage function
         window.restoreRankingPage = function() {
+            // Update URL without triggering reload
+            history.pushState({}, '', '#comparing');
+            
             document.body.innerHTML = `
                 <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo" onclick="resetSession()">
                 <div class="image-container" id="image-container">
@@ -1185,6 +1205,9 @@
 
         // Update the generatePDF function to fix PDF generation
         async function generatePDF() {
+            // Track PDF download
+            window.plausible('Download PDF');
+            
             // Show overlay
             const overlay = document.createElement('div');
             overlay.className = 'overlay';
@@ -1411,6 +1434,43 @@
             // Check if any images have no games played
             const noGamesPlayed = images.filter(img => !gamesPlayed.has(img));
             console.log('Images with no games:', noGamesPlayed.length);
+        }
+
+        // Add URL handling on page load and navigation
+        window.addEventListener('load', () => {
+            handleUrlChange();
+        });
+
+        window.addEventListener('popstate', () => {
+            handleUrlChange();
+        });
+
+        function handleUrlChange() {
+            const hash = window.location.hash;
+            
+            switch(hash) {
+                case '#comparing':
+                    // Only handle if we're not already comparing
+                    if (!currentPair.length) {
+                        history.replaceState({}, '', '/');
+                    }
+                    break;
+                    
+                case '#leaderboard':
+                    // Only show leaderboard if we have rankings
+                    if (Object.keys(rankings).length > 0) {
+                        showLeaderboard();
+                    } else {
+                        history.replaceState({}, '', '/');
+                    }
+                    break;
+                    
+                default:
+                    // Handle home state
+                    if (currentPair.length || Object.keys(rankings).length > 0) {
+                        resetSession();
+                    }
+            }
         }
     </script>
 </body>
