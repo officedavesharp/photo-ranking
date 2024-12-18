@@ -825,9 +825,6 @@
                     }
                 });
                 
-                // Update URL without triggering reload
-                history.pushState({}, '', '#comparing');
-
                 // Check for large files first
                 const largeFiles = Array.from(files).filter(file => 
                     file.type.startsWith('image/') && file.size > maxSize
@@ -1056,9 +1053,6 @@
         async function showLeaderboard() {
             debugRankings();
             
-            // Update URL without triggering reload
-            history.pushState({}, '', '#leaderboard');
-            
             // Track leaderboard view
             window.plausible('View Leaderboard');
             
@@ -1162,9 +1156,6 @@
 
         // Update restoreRankingPage function
         window.restoreRankingPage = function() {
-            // Update URL without triggering reload
-            history.pushState({}, '', '#comparing');
-            
             document.body.innerHTML = `
                 <img src="./static/Office D.SHARP.png" alt="Office D.SHARP" class="logo" onclick="resetSession()">
                 <div class="image-container" id="image-container">
@@ -1434,43 +1425,6 @@
             // Check if any images have no games played
             const noGamesPlayed = images.filter(img => !gamesPlayed.has(img));
             console.log('Images with no games:', noGamesPlayed.length);
-        }
-
-        // Add URL handling on page load and navigation
-        window.addEventListener('load', () => {
-            handleUrlChange();
-        });
-
-        window.addEventListener('popstate', () => {
-            handleUrlChange();
-        });
-
-        function handleUrlChange() {
-            const hash = window.location.hash;
-            
-            switch(hash) {
-                case '#comparing':
-                    // Only handle if we're not already comparing
-                    if (!currentPair.length) {
-                        history.replaceState({}, '', '/');
-                    }
-                    break;
-                    
-                case '#leaderboard':
-                    // Only show leaderboard if we have rankings
-                    if (Object.keys(rankings).length > 0) {
-                        showLeaderboard();
-                    } else {
-                        history.replaceState({}, '', '/');
-                    }
-                    break;
-                    
-                default:
-                    // Handle home state
-                    if (currentPair.length || Object.keys(rankings).length > 0) {
-                        resetSession();
-                    }
-            }
         }
     </script>
 </body>
